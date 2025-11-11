@@ -1,1 +1,197 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Excel Uploader</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+<div class="max-w-4xl mx-auto p-6">
+<div class="bg-white shadow-md rounded-2xl p-6">
+<h1 class="text-2xl font-semibold mb-2">Excel Uploader</h1>
+<p class="text-sm text-gray-500 mb-4">Excel (.xlsx / .xls / .csv) फाइल अपलोड करें और डेटा देखें व डाउनलोड करें।</p>
 
+
+<div id="dropZone" class="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-gray-400">
+<input id="fileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
+<div class="flex flex-col items-center gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v12m0 0l-4-4m4 4 4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6" />
+</svg>
+<div class="text-sm text-gray-700">फाइल यहाँ ड्रैग करें या क्लिक करें</div>
+<div class="text-xs text-gray-500">(.xlsx, .xls, .csv)</div>
+</div>
+</div>
+
+
+<div id="error" class="mt-4 text-red-600 hidden"></div>
+<div id="fileInfo" class="mt-6 hidden">
+<div class="flex items-center justify-between mb-3">
+<div>
+<strong id="filename"></strong>
+<div class="text-sm text-gray-500" id="fileStats"></div>
+</div>
+<div class="flex gap-2">
+<button id="downloadJSON" class="px-3 py-2 bg-blue-600 text-white rounded-lg shadow-sm">Download JSON</button>
+<button id="downloadCSV" class="px-3 py-2 bg-green-600 text-white rounded-lg shadow-sm">Download CSV</button>
+<button id="clearBtn" class="px-3 py-2 bg-gray-200 rounded-lg">Clear</button>
+</div>
+</div>
+<div class="overflow-auto border rounded-lg">
+<table id="dataTable" class="min-w-full table-auto text-sm"></table>
+</div>
+<div id="previewNote" class="text-xs text-gray-500 mt-2 hidden">Preview limited to first 200 rows.</div>
+</div>
+
+
+<div id="noData" class="mt-4 text-sm text-gray-600">अभी तक कोई फाइल अपलोड नहीं हुई।</div>
+
+
+<div class="mt-6 text-xs text-gray-400">
+Tip: इस HTML फाइल को GitHub Pages पर डालने के लिए सिर्फ इसे अपने repo में रखें और Pages को सक्षम करें।
+</div>
+</div>
+</div>
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const dataTable = document.getElementById('dataTable');
+const fileInfo = document.getElementById('fileInfo');
+const filenameEl = document.getElementById('filename');
+const fileStats = document.getElementById('fileStats');
+const noData = document.getElementById('noData');
+const errorEl = document.getElementById('error');
+const previewNote = document.getElementById('previewNote');
+
+
+let jsonData = [];
+let headers = [];
+
+
+dropZone.addEventListener('click', () => fileInput.click());
+
+
+dropZone.addEventListener('dragover', (e) => {
+e.preventDefault();
+dropZone.classList.add('border-gray-400');
+});
+
+
+dropZone.addEventListener('dragleave', () => {
+dropZone.classList.remove('border-gray-400');
+});
+
+
+dropZone.addEventListener('drop', (e) => {
+e.preventDefault();
+dropZone.classList.remove('border-gray-400');
+const file = e.dataTransfer.files[0];
+handleFile(file);
+});
+
+
+fileInput.addEventListener('change', (e) => {
+const file = e.target.files[0];
+handleFile(file);
+});
+
+
+async function handleFile(file) {
+if (!file) return;
+errorEl.classList.add('hidden');
+filenameEl.textContent = file.name;
+const reader = new FileReader();
+
+
+reader.onload = (e) => {
+try {
+const data = new Uint8Array(e.target.result);
+const workbook = XLSX.read(data, { type: 'array' });
+const sheet = workbook.Sheets[workbook.SheetNames[0]];
+jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+headers = Object.keys(jsonData[0] || {});
+renderTable();
+} catch (err) {
+errorEl.textContent = 'फाइल पढ़ने में त्रुटि। कृपया सही Excel फाइल अपलोड करें।';
+errorEl.classList.remove('hidden');
+}
+};
+
+
+reader.readAsArrayBuffer(file);
+}
+  function renderTable() {
+if (!jsonData.length) return;
+fileInfo.classList.remove('hidden');
+noData.classList.add('hidden');
+dataTable.innerHTML = '';
+fileStats.textContent = `Rows: ${jsonData.length} — Columns: ${headers.length}`;
+const thead = document.createElement('thead');
+thead.className = 'bg-gray-50';
+const headerRow = document.createElement('tr');
+headers.forEach(h => {
+const th = document.createElement('th');
+th.className = 'px-3 py-2 text-left border-b';
+th.textContent = h;
+headerRow.appendChild(th);
+});
+thead.appendChild(headerRow);
+dataTable.appendChild(thead);
+
+
+const tbody = document.createElement('tbody');
+jsonData.slice(0, 200).forEach((row, i) => {
+const tr = document.createElement('tr');
+tr.className = i % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+headers.forEach(h => {
+const td = document.createElement('td');
+td.className = 'px-3 py-2 border-b';
+td.textContent = row[h];
+tr.appendChild(td);
+});
+tbody.appendChild(tr);
+});
+dataTable.appendChild(tbody);
+previewNote.classList.toggle('hidden', jsonData.length <= 200);
+}
+
+
+document.getElementById('downloadJSON').onclick = () => {
+const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = (filenameEl.textContent || 'data') + '.json';
+a.click();
+URL.revokeObjectURL(url);
+};
+
+
+document.getElementById('downloadCSV').onclick = () => {
+const ws = XLSX.utils.json_to_sheet(jsonData);
+const wb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+const csv = XLSX.write(wb, { bookType: 'csv', type: 'string' });
+const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = (filenameEl.textContent || 'data') + '.csv';
+a.click();
+URL.revokeObjectURL(url);
+};
+
+
+document.getElementById('clearBtn').onclick = () => {
+jsonData = [];
+headers = [];
+fileInfo.classList.add('hidden');
+noData.classList.remove('hidden');
+dataTable.innerHTML = '';
+fileInput.value = '';
+};
+</script>
+</body>
+</html>
